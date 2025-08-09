@@ -4,6 +4,7 @@ using AutoSubber.Data;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Serilog;
 
 namespace AutoSubber
 {
@@ -13,11 +14,14 @@ namespace AutoSubber
         {
             var builder = WebApplication.CreateBuilder(args);
 
+            // Configure Serilog
+            builder.Host.UseSerilog((context, configuration) =>
+                configuration.ReadFrom.Configuration(context.Configuration));
+
             // Add services to the container.
             builder.Services.AddRazorComponents()
                 .AddInteractiveServerComponents()
-                .AddInteractiveWebAssemblyComponents()
-                .AddAuthenticationStateSerialization();
+                .AddInteractiveWebAssemblyComponents();
 
             builder.Services.AddCascadingAuthenticationState();
             builder.Services.AddScoped<IdentityUserAccessor>();
@@ -32,8 +36,22 @@ namespace AutoSubber
                 .AddIdentityCookies();
 
             var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
-            builder.Services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseSqlServer(connectionString));
+            
+            // Configure Entity Framework with support for both SQL Server and PostgreSQL
+            var databaseProvider = builder.Configuration.GetValue<string>("DatabaseProvider") ?? "SqlServer";
+            
+            if (databaseProvider.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
+            {
+                var postgresConnectionString = builder.Configuration.GetConnectionString("PostgreSQLConnection") ?? throw new InvalidOperationException("Connection string 'PostgreSQLConnection' not found.");
+                builder.Services.AddDbContext<ApplicationDbContext>(options =>
+                    options.UseNpgsql(postgresConnectionString));
+            }
+            else
+            {
+                builder.Services.AddDbContext<ApplicationDbContext>(options =>
+                    options.UseSqlServer(connectionString));
+            }
+            
             builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
             builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.RequireConfirmedAccount = true)
@@ -44,6 +62,9 @@ namespace AutoSubber
             builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 
             var app = builder.Build();
+
+            // Configure Serilog request logging
+            app.UseSerilogRequestLogging();
 
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
@@ -62,7 +83,7 @@ namespace AutoSubber
 
             app.UseAntiforgery();
 
-            app.MapStaticAssets();
+            app.UseStaticFiles();
             app.MapRazorComponents<App>()
                 .AddInteractiveServerRenderMode()
                 .AddInteractiveWebAssemblyRenderMode()
@@ -71,7 +92,21 @@ namespace AutoSubber
             // Add additional endpoints required by the Identity /Account Razor components.
             app.MapAdditionalIdentityEndpoints();
 
-            app.Run();
+            // Log application startup
+            Log.Information("AutoSubber application starting up");
+
+            try
+            {
+                app.Run();
+            }
+            catch (Exception ex)
+            {
+                Log.Fatal(ex, "AutoSubber application terminated unexpectedly");
+            }
+            finally
+            {
+                Log.CloseAndFlush();
+            }
         }
     }
 }
