@@ -1,6 +1,7 @@
 using AutoSubber.Components;
 using AutoSubber.Components.Account;
 using AutoSubber.Data;
+using AutoSubber.Services;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -68,6 +69,17 @@ namespace AutoSubber
                     options.ClientId = googleClientId;
                     options.ClientSecret = googleClientSecret;
                     options.CallbackPath = "/signin-google";
+                    
+                    // Request YouTube scopes for playlist management
+                    options.Scope.Add("https://www.googleapis.com/auth/youtube.force-ssl");
+                    options.Scope.Add("https://www.googleapis.com/auth/youtube.readonly");
+                    options.Scope.Add("https://www.googleapis.com/auth/youtube");
+                    
+                    // Enable offline access to get refresh tokens
+                    options.AccessType = "offline";
+                    
+                    // Save tokens to use with YouTube API
+                    options.SaveTokens = true;
                 });
             }
             
@@ -86,7 +98,7 @@ namespace AutoSubber
 
             var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
             
-            // Configure Entity Framework with support for both SQL Server and PostgreSQL
+            // Configure Entity Framework with support for SQL Server, PostgreSQL, and SQLite
             var databaseProvider = builder.Configuration.GetValue<string>("DatabaseProvider") ?? "SqlServer";
             
             if (databaseProvider.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
@@ -94,6 +106,13 @@ namespace AutoSubber
                 var postgresConnectionString = builder.Configuration.GetConnectionString("PostgreSQLConnection") ?? throw new InvalidOperationException("Connection string 'PostgreSQLConnection' not found.");
                 builder.Services.AddDbContext<ApplicationDbContext>(options =>
                     options.UseNpgsql(postgresConnectionString));
+            }
+            else if (databaseProvider.Equals("SQLite", StringComparison.OrdinalIgnoreCase) || 
+                     !OperatingSystem.IsWindows())  // Use SQLite on non-Windows platforms
+            {
+                var sqliteConnectionString = builder.Configuration.GetConnectionString("SqliteConnection") ?? "Data Source=autosubber.db";
+                builder.Services.AddDbContext<ApplicationDbContext>(options =>
+                    options.UseSqlite(sqliteConnectionString));
             }
             else
             {
@@ -109,6 +128,9 @@ namespace AutoSubber
                 .AddDefaultTokenProviders();
 
             builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
+
+            // Register token encryption service
+            builder.Services.AddScoped<ITokenEncryptionService, TokenEncryptionService>();
 
             var app = builder.Build();
 

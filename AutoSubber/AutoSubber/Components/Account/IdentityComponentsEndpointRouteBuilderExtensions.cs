@@ -3,6 +3,7 @@ using System.Text.Json;
 using AutoSubber.Components.Account.Pages;
 using AutoSubber.Components.Account.Pages.Manage;
 using AutoSubber.Data;
+using AutoSubber.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Http.Extensions;
@@ -43,8 +44,29 @@ namespace Microsoft.AspNetCore.Routing
             accountGroup.MapPost("/Logout", async (
                 ClaimsPrincipal user,
                 [FromServices] SignInManager<ApplicationUser> signInManager,
+                [FromServices] UserManager<ApplicationUser> userManager,
+                [FromServices] ILoggerFactory loggerFactory,
                 [FromForm] string returnUrl) =>
             {
+                var logger = loggerFactory.CreateLogger("Logout");
+                try
+                {
+                    // Clear Google tokens on logout
+                    var appUser = await userManager.GetUserAsync(user);
+                    if (appUser != null && !string.IsNullOrEmpty(appUser.EncryptedAccessToken))
+                    {
+                        appUser.EncryptedAccessToken = null;
+                        appUser.EncryptedRefreshToken = null;
+                        appUser.TokenExpiresAt = null;
+                        await userManager.UpdateAsync(appUser);
+                        logger.LogInformation("Google tokens cleared for user {UserId} on logout", appUser.Id);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error clearing Google tokens on logout");
+                }
+
                 await signInManager.SignOutAsync();
                 return TypedResults.LocalRedirect($"~/{returnUrl}");
             });
