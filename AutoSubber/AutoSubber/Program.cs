@@ -33,7 +33,56 @@ namespace AutoSubber
                     options.DefaultScheme = IdentityConstants.ApplicationScheme;
                     options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
                 })
-                .AddIdentityCookies();
+                .AddIdentityCookies(options =>
+                {
+                    // Configure secure cookie settings
+                    options.ApplicationCookie.Configure(appCookieOptions =>
+                    {
+                        appCookieOptions.Cookie.HttpOnly = true;
+                        appCookieOptions.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                        appCookieOptions.Cookie.SameSite = SameSiteMode.Strict;
+                        appCookieOptions.Cookie.Name = "AutoSubber.Identity";
+                        appCookieOptions.SlidingExpiration = true;
+                        appCookieOptions.ExpireTimeSpan = TimeSpan.FromDays(30);
+                    });
+                    
+                    options.ExternalCookie.Configure(extCookieOptions =>
+                    {
+                        extCookieOptions.Cookie.HttpOnly = true;
+                        extCookieOptions.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                        extCookieOptions.Cookie.SameSite = SameSiteMode.Lax; // Lax for external providers
+                        extCookieOptions.Cookie.Name = "AutoSubber.External";
+                    });
+                });
+
+            // Add external authentication providers
+            var authBuilder = builder.Services.AddAuthentication();
+            
+            // Configure Google OAuth if credentials are provided
+            var googleClientId = builder.Configuration["Authentication:Google:ClientId"];
+            var googleClientSecret = builder.Configuration["Authentication:Google:ClientSecret"];
+            if (!string.IsNullOrEmpty(googleClientId) && !string.IsNullOrEmpty(googleClientSecret))
+            {
+                authBuilder.AddGoogle(options =>
+                {
+                    options.ClientId = googleClientId;
+                    options.ClientSecret = googleClientSecret;
+                    options.CallbackPath = "/signin-google";
+                });
+            }
+            
+            // Configure Microsoft OAuth if credentials are provided
+            var microsoftClientId = builder.Configuration["Authentication:Microsoft:ClientId"];
+            var microsoftClientSecret = builder.Configuration["Authentication:Microsoft:ClientSecret"];
+            if (!string.IsNullOrEmpty(microsoftClientId) && !string.IsNullOrEmpty(microsoftClientSecret))
+            {
+                authBuilder.AddMicrosoftAccount(options =>
+                {
+                    options.ClientId = microsoftClientId;
+                    options.ClientSecret = microsoftClientSecret;
+                    options.CallbackPath = "/signin-microsoft";
+                });
+            }
 
             var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
             
