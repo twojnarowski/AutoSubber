@@ -24,6 +24,9 @@ namespace AutoSubber
                 .AddInteractiveServerComponents()
                 .AddInteractiveWebAssemblyComponents();
 
+            // Add Web API controllers for webhook endpoints
+            builder.Services.AddControllers();
+
             builder.Services.AddCascadingAuthenticationState();
             builder.Services.AddScoped<IdentityUserAccessor>();
             builder.Services.AddScoped<IdentityRedirectManager>();
@@ -141,6 +144,9 @@ namespace AutoSubber
             // Register YouTube subscription service
             builder.Services.AddScoped<IYouTubeSubscriptionService, YouTubeSubscriptionService>();
 
+            // Register YouTube webhook service
+            builder.Services.AddScoped<IYouTubeWebhookService, YouTubeWebhookService>();
+
             var app = builder.Build();
 
             // Configure Serilog request logging
@@ -171,6 +177,9 @@ namespace AutoSubber
 
             // Add additional endpoints required by the Identity /Account Razor components.
             app.MapAdditionalIdentityEndpoints();
+
+            // Map Web API controllers for webhook endpoints
+            app.MapControllers();
 
             // Log application startup
             Log.Information("AutoSubber application starting up");
