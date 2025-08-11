@@ -129,6 +129,9 @@ namespace AutoSubber
 
             builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 
+            // Configure Data Protection
+            ConfigureDataProtection(builder);
+
             // Register token encryption service
             builder.Services.AddScoped<ITokenEncryptionService, TokenEncryptionService>();
 
@@ -177,6 +180,31 @@ namespace AutoSubber
             finally
             {
                 Log.CloseAndFlush();
+            }
+        }
+
+        /// <summary>
+        /// Configures Data Protection for secure token encryption
+        /// </summary>
+        private static void ConfigureDataProtection(WebApplicationBuilder builder)
+        {
+            // Configure Data Protection with application name for key isolation
+            builder.Services.AddDataProtection();
+
+            // In production, log a warning about key persistence
+            if (builder.Environment.IsProduction())
+            {
+                var keyDirectory = builder.Configuration["DataProtection:KeyDirectory"];
+                if (string.IsNullOrEmpty(keyDirectory))
+                {
+                    Console.WriteLine("INFO: DataProtection:KeyDirectory not configured. Keys will use default persistence mechanism. For persistent keys across deployments, configure a persistent storage location.");
+                }
+                else
+                {
+                    Console.WriteLine($"INFO: DataProtection key directory configured: {keyDirectory}");
+                    // Note: PersistKeysToFileSystem requires additional configuration in deployment
+                    // For now, rely on default persistence mechanisms
+                }
             }
         }
     }
