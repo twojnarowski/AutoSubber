@@ -137,6 +137,9 @@ namespace AutoSubber
             
             // Register YouTube playlist service
             builder.Services.AddScoped<IYouTubePlaylistService, YouTubePlaylistService>();
+            
+            // Register YouTube subscription service
+            builder.Services.AddScoped<IYouTubeSubscriptionService, YouTubeSubscriptionService>();
 
             var app = builder.Build();
 

@@ -1,7 +1,39 @@
 ﻿@page "/"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using AutoSubber.Data
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
 
 <PageTitle>Home</PageTitle>
 
-<h1>Hello, world!</h1>
-
-Welcome to your new app.
+<div class="container">
+    <h1>Hello, world!</h1>
+    
+    <p>Welcome to your new app.</p>
+    
+    <AuthorizeView>
+        <Authorized>
+            <div class="mt-4">
+                <h3>Quick Actions</h3>
+                <div class="list-group">
+                    <a href="/subscriptions" class="list-group-item list-group-item-action">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h5 class="mb-1">Manage YouTube Subscriptions</h5>
+                        </div>
+                        <p class="mb-1">View and manage your YouTube channel subscriptions for automation.</p>
+                        <small>Fetch your subscriptions and toggle which channels to include</small>
+                    </a>
+                </div>
+            </div>
+        </Authorized>
+        <NotAuthorized>
+            <div class="mt-4">
+                <div class="alert alert-info">
+                    <h4>Welcome to AutoSubber</h4>
+                    <p>Please <a href="/Account/Login">sign in</a> to manage your YouTube subscriptions.</p>
+                </div>
+            </div>
+        </NotAuthorized>
+    </AuthorizeView>
+</div>
