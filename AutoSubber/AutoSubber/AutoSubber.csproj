@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Google.Apis.YouTube.v3" Version="1.70.0.3847" />
     <PackageReference Include="Microsoft.AspNetCore.DataProtection.Extensions" Version="9.0.8" />
     <ProjectReference Include="..\AutoSubber.Client\AutoSubber.Client.csproj" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="9.0.7" />

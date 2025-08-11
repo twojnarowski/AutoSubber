@@ -18,6 +18,7 @@
 @inject IdentityRedirectManager RedirectManager
 @inject ILogger<ExternalLogin> Logger
 @inject ITokenEncryptionService TokenEncryption
+@inject IYouTubePlaylistService YouTubePlaylistService
 
 <PageTitle>Register</PageTitle>
 
@@ -170,6 +171,9 @@
                 if (externalLoginInfo.LoginProvider == "Google")
                 {
                     await StoreGoogleTokensAsync(user);
+                    
+                    // Create Auto Watch Later playlist for new Google users
+                    await CreateAutoWatchLaterPlaylistAsync(user);
                 }
 
                 var userId = await UserManager.GetUserIdAsync(user);
@@ -282,6 +286,32 @@
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error updating Google tokens for existing user");
+        }
+    }
+
+    private async Task CreateAutoWatchLaterPlaylistAsync(ApplicationUser user)
+    {
+        try
+        {
+            Logger.LogInformation("Creating Auto Watch Later playlist for new user {UserId}", user.Id);
+            
+            var playlistId = await YouTubePlaylistService.CreateAutoWatchLaterPlaylistAsync(user);
+            
+            if (!string.IsNullOrEmpty(playlistId))
+            {
+                user.AutoWatchLaterPlaylistId = playlistId;
+                await UserManager.UpdateAsync(user);
+                Logger.LogInformation("Auto Watch Later playlist {PlaylistId} created and stored for user {UserId}", 
+                    playlistId, user.Id);
+            }
+            else
+            {
+                Logger.LogWarning("Failed to create Auto Watch Later playlist for user {UserId}", user.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error creating Auto Watch Later playlist for user {UserId}", user.Id);
         }
     }
 

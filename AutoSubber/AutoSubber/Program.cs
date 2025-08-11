@@ -134,6 +134,9 @@ namespace AutoSubber
 
             // Register token encryption service
             builder.Services.AddScoped<ITokenEncryptionService, TokenEncryptionService>();
+            
+            // Register YouTube playlist service
+            builder.Services.AddScoped<IYouTubePlaylistService, YouTubePlaylistService>();
 
             var app = builder.Build();
 

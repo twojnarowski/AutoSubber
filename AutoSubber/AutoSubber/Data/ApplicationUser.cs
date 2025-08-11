@@ -29,5 +29,10 @@ namespace AutoSubber.Data
         /// When the access token expires (UTC)
         /// </summary>
         public DateTime? TokenExpiresAt { get; set; }
+        
+        /// <summary>
+        /// YouTube Auto Watch Later playlist ID
+        /// </summary>
+        public string? AutoWatchLaterPlaylistId { get; set; }
     }
 }
