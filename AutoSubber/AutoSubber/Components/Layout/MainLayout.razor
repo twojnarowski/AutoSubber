@@ -1,6 +1,33 @@
 ﻿@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Identity
+@using AutoSubber.Data
+@inject SignInManager<ApplicationUser> SignInManager
 
-@Body
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+        <a class="navbar-brand" href="/">AutoSubber</a>
+        
+        <div class="navbar-nav ms-auto">
+            <AuthorizeView>
+                <Authorized>
+                    <a class="nav-link" href="/subscriptions">Subscriptions</a>
+                    <a class="nav-link" href="/Account/Manage">Account</a>
+                    <form method="post" action="/Account/Logout" class="d-inline">
+                        <button type="submit" class="btn btn-link nav-link border-0">Logout</button>
+                    </form>
+                </Authorized>
+                <NotAuthorized>
+                    <a class="nav-link" href="/Account/Login">Login</a>
+                    <a class="nav-link" href="/Account/Register">Register</a>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+    </div>
+</nav>
+
+<main class="container mt-4">
+    @Body
+</main>
 
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.
