@@ -4,9 +4,11 @@
 @using System.Security.Claims
 @using System.Text
 @using System.Text.Encodings.Web
+@using Microsoft.AspNetCore.Authentication
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.AspNetCore.WebUtilities
 @using AutoSubber.Data
+@using AutoSubber.Services
 
 @inject SignInManager<ApplicationUser> SignInManager
 @inject UserManager<ApplicationUser> UserManager
@@ -15,6 +17,7 @@
 @inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
 @inject ILogger<ExternalLogin> Logger
+@inject ITokenEncryptionService TokenEncryption
 
 <PageTitle>Register</PageTitle>
 
@@ -112,6 +115,12 @@
 
         if (result.Succeeded)
         {
+            // Update user tokens if this is a Google login
+            if (externalLoginInfo.LoginProvider == "Google")
+            {
+                await UpdateGoogleTokensAsync();
+            }
+            
             Logger.LogInformation(
                 "{Name} logged in with {LoginProvider} provider.",
                 externalLoginInfo.Principal.Identity?.Name,
@@ -143,6 +152,12 @@
         await UserStore.SetUserNameAsync(user, Input.Email, CancellationToken.None);
         await emailStore.SetEmailAsync(user, Input.Email, CancellationToken.None);
 
+        // Set Google-specific user data if this is a Google login
+        if (externalLoginInfo.LoginProvider == "Google")
+        {
+            SetGoogleUserData(user);
+        }
+
         var result = await UserManager.CreateAsync(user);
         if (result.Succeeded)
         {
@@ -150,6 +165,12 @@
             if (result.Succeeded)
             {
                 Logger.LogInformation("User created an account using {Name} provider.", externalLoginInfo.LoginProvider);
+
+                // Store Google tokens if this is a Google login
+                if (externalLoginInfo.LoginProvider == "Google")
+                {
+                    await StoreGoogleTokensAsync(user);
+                }
 
                 var userId = await UserManager.GetUserIdAsync(user);
                 var code = await UserManager.GenerateEmailConfirmationTokenAsync(user);
@@ -194,6 +215,74 @@
             throw new NotSupportedException("The default UI requires a user store with email support.");
         }
         return (IUserEmailStore<ApplicationUser>)UserStore;
+    }
+
+    private void SetGoogleUserData(ApplicationUser user)
+    {
+        // Extract Google subject identifier
+        var subClaim = externalLoginInfo.Principal.FindFirst("sub");
+        if (subClaim != null)
+        {
+            user.GoogleSubject = subClaim.Value;
+        }
+
+        // Extract display name
+        var nameClaim = externalLoginInfo.Principal.FindFirst(ClaimTypes.Name);
+        if (nameClaim != null)
+        {
+            user.DisplayName = nameClaim.Value;
+        }
+    }
+
+    private async Task StoreGoogleTokensAsync(ApplicationUser user)
+    {
+        try
+        {
+            var accessToken = await HttpContext.GetTokenAsync("access_token");
+            var refreshToken = await HttpContext.GetTokenAsync("refresh_token");
+            var expiresAt = await HttpContext.GetTokenAsync("expires_at");
+
+            if (!string.IsNullOrEmpty(accessToken))
+            {
+                user.EncryptedAccessToken = TokenEncryption.Encrypt(accessToken);
+
+                if (!string.IsNullOrEmpty(refreshToken))
+                {
+                    user.EncryptedRefreshToken = TokenEncryption.Encrypt(refreshToken);
+                }
+
+                if (!string.IsNullOrEmpty(expiresAt) && DateTimeOffset.TryParse(expiresAt, out var expiresAtOffset))
+                {
+                    user.TokenExpiresAt = expiresAtOffset.UtcDateTime;
+                }
+
+                await UserManager.UpdateAsync(user);
+                Logger.LogInformation("Google tokens stored for user {UserId}", user.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error storing Google tokens for user {UserId}", user.Id);
+        }
+    }
+
+    private async Task UpdateGoogleTokensAsync()
+    {
+        try
+        {
+            var userId = externalLoginInfo.Principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId)) return;
+
+            var user = await UserManager.FindByLoginAsync(externalLoginInfo.LoginProvider, externalLoginInfo.ProviderKey);
+            if (user != null)
+            {
+                await StoreGoogleTokensAsync(user);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error updating Google tokens for existing user");
+        }
     }
 
     private sealed class InputModel
