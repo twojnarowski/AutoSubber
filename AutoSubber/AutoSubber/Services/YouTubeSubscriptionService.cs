@@ -35,6 +35,13 @@ namespace AutoSubber.Services
         {
             try
             {
+                // Check if automation is disabled for this user
+                if (user.AutomationDisabled)
+                {
+                    _logger.LogWarning("User {UserId} has automation disabled - skipping subscription fetch. User needs to re-authenticate.", user.Id);
+                    return null;
+                }
+
                 // Validate user has required tokens
                 if (string.IsNullOrEmpty(user.EncryptedAccessToken))
                 {

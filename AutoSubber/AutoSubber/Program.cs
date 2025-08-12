@@ -138,6 +138,9 @@ namespace AutoSubber
             // Register token encryption service
             builder.Services.AddScoped<ITokenEncryptionService, TokenEncryptionService>();
             
+            // Register YouTube token refresh service
+            builder.Services.AddScoped<IYouTubeTokenRefreshService, YouTubeTokenRefreshService>();
+            
             // Register YouTube playlist service
             builder.Services.AddScoped<IYouTubePlaylistService, YouTubePlaylistService>();
             
@@ -155,6 +158,12 @@ namespace AutoSubber
             
             // Register HTTP client for PubSub service
             builder.Services.AddHttpClient<PubSubSubscriptionService>();
+            
+            // Register HTTP client for token refresh service
+            builder.Services.AddHttpClient<YouTubeTokenRefreshService>();
+
+            // Register background service for token refresh
+            builder.Services.AddHostedService<TokenRefreshBackgroundService>();
 
             // Register background service for PubSub renewal
             builder.Services.AddHostedService<PubSubRenewalBackgroundService>();
