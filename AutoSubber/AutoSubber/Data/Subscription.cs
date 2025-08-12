@@ -45,6 +45,26 @@ namespace AutoSubber.Data
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         /// <summary>
+        /// Whether we have successfully subscribed to PubSubHubbub for this channel
+        /// </summary>
+        public bool PubSubSubscribed { get; set; } = false;
+
+        /// <summary>
+        /// When the PubSubHubbub subscription lease expires
+        /// </summary>
+        public DateTime? PubSubLeaseExpiry { get; set; }
+
+        /// <summary>
+        /// Number of PubSubHubbub subscription attempts (for retry logic)
+        /// </summary>
+        public int PubSubSubscriptionAttempts { get; set; } = 0;
+
+        /// <summary>
+        /// When the last PubSubHubbub subscription attempt was made
+        /// </summary>
+        public DateTime? PubSubLastAttempt { get; set; }
+
+        /// <summary>
         /// Navigation property to user
         /// </summary>
         [ForeignKey(nameof(UserId))]

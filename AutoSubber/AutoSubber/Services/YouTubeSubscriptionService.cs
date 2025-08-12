@@ -14,15 +14,21 @@ namespace AutoSubber.Services
         private readonly ILogger<YouTubeSubscriptionService> _logger;
         private readonly ITokenEncryptionService _tokenEncryption;
         private readonly ApplicationDbContext _context;
+        private readonly IPubSubSubscriptionService _pubSubService;
+        private readonly IConfiguration _configuration;
 
         public YouTubeSubscriptionService(
             ILogger<YouTubeSubscriptionService> logger,
             ITokenEncryptionService tokenEncryption,
-            ApplicationDbContext context)
+            ApplicationDbContext context,
+            IPubSubSubscriptionService pubSubService,
+            IConfiguration configuration)
         {
             _logger = logger;
             _tokenEncryption = tokenEncryption;
             _context = context;
+            _pubSubService = pubSubService;
+            _configuration = configuration;
         }
 
         public async Task<int?> FetchAndStoreSubscriptionsAsync(ApplicationUser user)
@@ -105,6 +111,9 @@ namespace AutoSubber.Services
 
                 _logger.LogInformation("Successfully fetched and stored {Count} subscriptions for user {UserId}", 
                     subscriptionCount, user.Id);
+
+                // Trigger PubSub subscriptions for new channels
+                await TriggerPubSubSubscriptionsAsync();
                 
                 return subscriptionCount;
             }
@@ -156,6 +165,45 @@ namespace AutoSubber.Services
             {
                 _logger.LogError(ex, "Error updating subscription {SubscriptionId} for user {UserId}", subscriptionId, userId);
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// Triggers PubSub subscriptions for channels that need them
+        /// </summary>
+        private async Task TriggerPubSubSubscriptionsAsync()
+        {
+            try
+            {
+                var baseUrl = _configuration["BaseUrl"];
+                if (string.IsNullOrEmpty(baseUrl))
+                {
+                    _logger.LogWarning("BaseUrl not configured, cannot trigger PubSub subscriptions");
+                    return;
+                }
+
+                var callbackUrl = $"{baseUrl.TrimEnd('/')}/api/youtube/webhook";
+                var subscriptionsNeedingAttention = await _pubSubService.GetSubscriptionsNeedingAttentionAsync();
+
+                _logger.LogInformation("Triggering PubSub subscriptions for {Count} channels", subscriptionsNeedingAttention.Count);
+
+                foreach (var subscription in subscriptionsNeedingAttention)
+                {
+                    try
+                    {
+                        await _pubSubService.ProcessSubscriptionAsync(subscription, callbackUrl);
+                        // Add small delay to avoid overwhelming the service
+                        await Task.Delay(TimeSpan.FromSeconds(1));
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error triggering PubSub subscription for channel {ChannelId}", subscription.ChannelId);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error triggering PubSub subscriptions");
             }
         }
     }

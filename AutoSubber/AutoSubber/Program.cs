@@ -147,6 +147,15 @@ namespace AutoSubber
             // Register YouTube webhook service
             builder.Services.AddScoped<IYouTubeWebhookService, YouTubeWebhookService>();
 
+            // Register PubSub subscription service
+            builder.Services.AddScoped<IPubSubSubscriptionService, PubSubSubscriptionService>();
+            
+            // Register HTTP client for PubSub service
+            builder.Services.AddHttpClient<PubSubSubscriptionService>();
+
+            // Register background service for PubSub renewal
+            builder.Services.AddHostedService<PubSubRenewalBackgroundService>();
+
             var app = builder.Build();
 
             // Configure Serilog request logging
