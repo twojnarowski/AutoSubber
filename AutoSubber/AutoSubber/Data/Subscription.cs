@@ -65,6 +65,22 @@ namespace AutoSubber.Data
         public DateTime? PubSubLastAttempt { get; set; }
 
         /// <summary>
+        /// Last video ID processed via polling (for duplicate prevention)
+        /// </summary>
+        [StringLength(50)]
+        public string? LastPolledVideoId { get; set; }
+
+        /// <summary>
+        /// When the last polling check was performed for this channel
+        /// </summary>
+        public DateTime? LastPolledAt { get; set; }
+
+        /// <summary>
+        /// Whether fallback polling is enabled for this channel
+        /// </summary>
+        public bool PollingEnabled { get; set; } = true;
+
+        /// <summary>
         /// Navigation property to user
         /// </summary>
         [ForeignKey(nameof(UserId))]
