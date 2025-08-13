@@ -14,5 +14,10 @@ namespace AutoSubber.Data
         /// YouTube webhook events from PubSubHubbub
         /// </summary>
         public DbSet<WebhookEvent> WebhookEvents { get; set; } = null!;
+
+        /// <summary>
+        /// Videos that have been processed and added to user playlists
+        /// </summary>
+        public DbSet<ProcessedVideo> ProcessedVideos { get; set; } = null!;
     }
 }
