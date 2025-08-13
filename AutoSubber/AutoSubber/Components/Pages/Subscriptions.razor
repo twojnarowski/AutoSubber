@@ -1,3 +1,4 @@
+@page "/settings"
 @page "/subscriptions"
 @using AutoSubber.Data
 @using AutoSubber.Services
@@ -9,9 +10,10 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject ILogger<Subscriptions> Logger
 
-<PageTitle>YouTube Subscriptions</PageTitle>
+<PageTitle>Settings - Subscription Management</PageTitle>
 
-<h1>YouTube Subscriptions</h1>
+<h1>Settings</h1>
+<h2 class="h4 text-muted mb-4">Subscription Management</h2>
 
 <div class="row">
     <div class="col-md-8">
@@ -31,14 +33,59 @@
                 @subscriptions.Count(s => s.IsIncluded) are included for automation.
             </p>
             
+            <!-- Bulk Actions -->
+            <div class="mb-3">
+                <div class="btn-group" role="group" aria-label="Bulk actions">
+                    <button class="btn btn-outline-success btn-sm" 
+                            @onclick="() => BulkUpdateSubscriptions(true)"
+                            disabled="@isBulkUpdating">
+                        @if (isBulkUpdating && bulkInclusionValue == true)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        }
+                        Enable All
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm" 
+                            @onclick="() => BulkUpdateSubscriptions(false)"
+                            disabled="@isBulkUpdating">
+                        @if (isBulkUpdating && bulkInclusionValue == false)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        }
+                        Disable All
+                    </button>
+                </div>
+            </div>
+            
             <div class="list-group">
                 @foreach (var subscription in subscriptions)
                 {
-                    <div class="list-group-item d-flex justify-content-between align-items-center">
-                        <div>
+                    <div class="list-group-item d-flex align-items-center">
+                        <!-- Thumbnail -->
+                        <div class="me-3">
+                            @if (!string.IsNullOrEmpty(subscription.ThumbnailUrl))
+                            {
+                                <img src="@subscription.ThumbnailUrl" 
+                                     alt="@subscription.Title thumbnail" 
+                                     class="rounded" 
+                                     style="width: 48px; height: 48px; object-fit: cover;" />
+                            }
+                            else
+                            {
+                                <div class="bg-secondary rounded d-flex align-items-center justify-content-center" 
+                                     style="width: 48px; height: 48px;">
+                                    <i class="fas fa-user text-white"></i>
+                                </div>
+                            }
+                        </div>
+                        
+                        <!-- Channel Info -->
+                        <div class="flex-grow-1">
                             <h6 class="mb-1">@subscription.Title</h6>
                             <small class="text-muted">Channel ID: @subscription.ChannelId</small>
                         </div>
+                        
+                        <!-- Toggle Switch -->
                         <div class="form-check form-switch">
                             <input class="form-check-input" 
                                    type="checkbox" 
@@ -111,6 +158,8 @@
     private List<Subscription> subscriptions = new();
     private bool isLoading = true;
     private bool isFetching = false;
+    private bool isBulkUpdating = false;
+    private bool? bulkInclusionValue = null;
     private bool hasAttemptedFetch = false;
     private string statusMessage = string.Empty;
     private bool isStatusError = false;
@@ -218,6 +267,52 @@
         {
             Logger.LogError(ex, "Error toggling subscription {SubscriptionId}", subscriptionId);
             SetStatusMessage("Error updating subscription", true);
+        }
+    }
+
+    private async Task BulkUpdateSubscriptions(bool isIncluded)
+    {
+        try
+        {
+            isBulkUpdating = true;
+            bulkInclusionValue = isIncluded;
+            SetStatusMessage("", false);
+            
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = await UserManager.GetUserAsync(authState.User);
+            
+            if (user == null)
+            {
+                SetStatusMessage("User not found", true);
+                return;
+            }
+
+            var updateCount = await SubscriptionService.UpdateAllSubscriptionsInclusionAsync(user.Id, isIncluded);
+            
+            if (updateCount > 0)
+            {
+                // Update the local state
+                foreach (var subscription in subscriptions)
+                {
+                    subscription.IsIncluded = isIncluded;
+                }
+                
+                SetStatusMessage($"Successfully updated {updateCount} subscriptions", false);
+            }
+            else
+            {
+                SetStatusMessage("No subscriptions needed updating", false);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error bulk updating subscriptions");
+            SetStatusMessage("Error updating subscriptions", true);
+        }
+        finally
+        {
+            isBulkUpdating = false;
+            bulkInclusionValue = null;
         }
     }
 

@@ -35,6 +35,12 @@ namespace AutoSubber.Data
         public string Title { get; set; } = string.Empty;
 
         /// <summary>
+        /// Channel thumbnail URL
+        /// </summary>
+        [StringLength(500)]
+        public string? ThumbnailUrl { get; set; }
+
+        /// <summary>
         /// Whether this subscription is included for automation
         /// </summary>
         public bool IsIncluded { get; set; } = true;
