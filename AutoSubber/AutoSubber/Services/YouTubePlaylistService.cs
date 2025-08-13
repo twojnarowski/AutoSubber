@@ -3,6 +3,7 @@ using Google.Apis.Auth.OAuth2;
 using Google.Apis.Services;
 using Google.Apis.YouTube.v3;
 using Google.Apis.YouTube.v3.Data;
+using Polly;
 
 namespace AutoSubber.Services
 {
@@ -87,6 +88,101 @@ namespace AutoSubber.Services
             {
                 _logger.LogError(ex, "Error creating Auto Watch Later playlist for user {UserId}", user.Id);
                 return null;
+            }
+        }
+
+        public async Task<bool> AddVideoToPlaylistAsync(ApplicationUser user, string videoId, string channelId, string? videoTitle = null)
+        {
+            try
+            {
+                // Validate inputs
+                if (string.IsNullOrEmpty(videoId) || string.IsNullOrEmpty(channelId))
+                {
+                    _logger.LogWarning("Invalid video or channel ID provided for user {UserId}", user.Id);
+                    return false;
+                }
+
+                // Check if user has a playlist configured
+                if (string.IsNullOrEmpty(user.AutoWatchLaterPlaylistId))
+                {
+                    _logger.LogWarning("User {UserId} does not have an Auto Watch Later playlist configured", user.Id);
+                    return false;
+                }
+
+                // Validate user has required tokens
+                if (string.IsNullOrEmpty(user.EncryptedAccessToken))
+                {
+                    _logger.LogWarning("User {UserId} does not have an access token for video {VideoId}", user.Id, videoId);
+                    return false;
+                }
+
+                // Decrypt the access token
+                var accessToken = _tokenEncryption.Decrypt(user.EncryptedAccessToken);
+                if (string.IsNullOrEmpty(accessToken))
+                {
+                    _logger.LogError("Failed to decrypt access token for user {UserId} for video {VideoId}", user.Id, videoId);
+                    return false;
+                }
+
+                // Create YouTube service with OAuth2 credentials
+                var credential = GoogleCredential.FromAccessToken(accessToken);
+                var youtubeService = new YouTubeService(new BaseClientService.Initializer()
+                {
+                    HttpClientInitializer = credential,
+                    ApplicationName = "AutoSubber"
+                });
+
+                // Create playlist item to add video
+                var playlistItem = new PlaylistItem()
+                {
+                    Snippet = new PlaylistItemSnippet()
+                    {
+                        PlaylistId = user.AutoWatchLaterPlaylistId,
+                        ResourceId = new ResourceId()
+                        {
+                            Kind = "youtube#video",
+                            VideoId = videoId
+                        }
+                    }
+                };
+
+                // Define retry policy for API calls
+                var retryPolicy = Policy
+                    .Handle<Exception>()
+                    .WaitAndRetryAsync(
+                        retryCount: 3,
+                        sleepDurationProvider: retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)), // Exponential backoff
+                        onRetry: (outcome, timespan, retryCount, context) =>
+                        {
+                            _logger.LogWarning("Retry {RetryCount} for adding video {VideoId} to playlist for user {UserId} after {Delay}s. Exception: {Exception}",
+                                retryCount, videoId, user.Id, timespan.TotalSeconds, outcome?.Message);
+                        });
+
+                // Execute with retry policy
+                var result = await retryPolicy.ExecuteAsync(async () =>
+                {
+                    var insertRequest = youtubeService.PlaylistItems.Insert(playlistItem, "snippet");
+                    return await insertRequest.ExecuteAsync();
+                });
+
+                if (result?.Id != null)
+                {
+                    _logger.LogInformation("Successfully added video {VideoId} (Title: {Title}) from channel {ChannelId} to playlist {PlaylistId} for user {UserId}",
+                        videoId, videoTitle ?? "Unknown", channelId, user.AutoWatchLaterPlaylistId, user.Id);
+                    return true;
+                }
+                else
+                {
+                    _logger.LogError("YouTube API returned null response when adding video {VideoId} to playlist for user {UserId}",
+                        videoId, user.Id);
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error adding video {VideoId} (Title: {Title}) from channel {ChannelId} to playlist for user {UserId}",
+                    videoId, videoTitle ?? "Unknown", channelId, user.Id);
+                return false;
             }
         }
     }

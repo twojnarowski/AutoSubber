@@ -156,6 +156,9 @@ namespace AutoSubber
             // Register YouTube polling service for fallback when PubSub fails
             builder.Services.AddScoped<IYouTubePollingService, YouTubePollingService>();
             
+            // Register video processing service
+            builder.Services.AddScoped<IVideoProcessingService, VideoProcessingService>();
+            
             // Register HTTP client for PubSub service
             builder.Services.AddHttpClient<PubSubSubscriptionService>();
             
@@ -170,6 +173,9 @@ namespace AutoSubber
 
             // Register background service for fallback polling
             builder.Services.AddHostedService<FallbackPollingBackgroundService>();
+
+            // Register background service for video processing
+            builder.Services.AddHostedService<VideoProcessingBackgroundService>();
 
             var app = builder.Build();
 
