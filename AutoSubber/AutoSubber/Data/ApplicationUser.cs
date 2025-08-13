@@ -34,5 +34,10 @@ namespace AutoSubber.Data
         /// YouTube Auto Watch Later playlist ID
         /// </summary>
         public string? AutoWatchLaterPlaylistId { get; set; }
+        
+        /// <summary>
+        /// Whether automation is disabled for this user due to token refresh failures
+        /// </summary>
+        public bool AutomationDisabled { get; set; } = false;
     }
 }
