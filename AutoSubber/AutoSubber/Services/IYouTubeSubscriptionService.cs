@@ -29,5 +29,13 @@ namespace AutoSubber.Services
         /// <param name="userId">The user ID (for security)</param>
         /// <returns>True if updated successfully</returns>
         Task<bool> UpdateSubscriptionInclusionAsync(int subscriptionId, bool isIncluded, string userId);
+
+        /// <summary>
+        /// Updates the inclusion status for all subscriptions belonging to a user
+        /// </summary>
+        /// <param name="userId">The user ID</param>
+        /// <param name="isIncluded">Whether subscriptions should be included for automation</param>
+        /// <returns>Number of subscriptions updated</returns>
+        Task<int> UpdateAllSubscriptionsInclusionAsync(string userId, bool isIncluded);
     }
 }

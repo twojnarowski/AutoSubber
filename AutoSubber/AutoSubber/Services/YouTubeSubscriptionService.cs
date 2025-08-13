@@ -93,11 +93,15 @@ namespace AutoSubber.Services
                             if (subscription.Snippet?.ChannelId != null && 
                                 subscription.Snippet?.Title != null)
                             {
+                                // Get the best quality thumbnail URL available
+                                var thumbnailUrl = GetBestThumbnailUrl(subscription.Snippet.Thumbnails);
+
                                 var newSubscription = new Subscription
                                 {
                                     UserId = user.Id,
                                     ChannelId = subscription.Snippet.ChannelId,
                                     Title = subscription.Snippet.Title,
+                                    ThumbnailUrl = thumbnailUrl,
                                     IsIncluded = true, // Default to included
                                     CreatedAt = DateTime.UtcNow
                                 };
@@ -175,6 +179,40 @@ namespace AutoSubber.Services
             }
         }
 
+        public async Task<int> UpdateAllSubscriptionsInclusionAsync(string userId, bool isIncluded)
+        {
+            try
+            {
+                var subscriptions = await _context.Subscriptions
+                    .Where(s => s.UserId == userId)
+                    .ToListAsync();
+
+                var updateCount = 0;
+                foreach (var subscription in subscriptions)
+                {
+                    if (subscription.IsIncluded != isIncluded)
+                    {
+                        subscription.IsIncluded = isIncluded;
+                        updateCount++;
+                    }
+                }
+
+                if (updateCount > 0)
+                {
+                    await _context.SaveChangesAsync();
+                    _logger.LogInformation("Updated {Count} subscriptions inclusion to {IsIncluded} for user {UserId}", 
+                        updateCount, isIncluded, userId);
+                }
+
+                return updateCount;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating all subscriptions for user {UserId}", userId);
+                return 0;
+            }
+        }
+
         /// <summary>
         /// Triggers PubSub subscriptions for channels that need them
         /// </summary>
@@ -212,6 +250,21 @@ namespace AutoSubber.Services
             {
                 _logger.LogError(ex, "Error triggering PubSub subscriptions");
             }
+        }
+
+        /// <summary>
+        /// Gets the best quality thumbnail URL from YouTube API thumbnails
+        /// </summary>
+        /// <param name="thumbnails">Thumbnail collection from YouTube API</param>
+        /// <returns>Best available thumbnail URL, or null if none available</returns>
+        private static string? GetBestThumbnailUrl(Google.Apis.YouTube.v3.Data.ThumbnailDetails? thumbnails)
+        {
+            if (thumbnails == null) return null;
+
+            // Prefer higher quality thumbnails, fallback to lower quality
+            return thumbnails.High?.Url ?? 
+                   thumbnails.Medium?.Url ?? 
+                   thumbnails.Default__?.Url;
         }
     }
 }
