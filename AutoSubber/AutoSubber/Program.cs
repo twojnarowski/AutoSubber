@@ -159,6 +159,9 @@ namespace AutoSubber
             // Register video processing service
             builder.Services.AddScoped<IVideoProcessingService, VideoProcessingService>();
             
+            // Register diagnostics service
+            builder.Services.AddScoped<IDiagnosticsService, DiagnosticsService>();
+            
             // Register HTTP client for PubSub service
             builder.Services.AddHttpClient<PubSubSubscriptionService>();
             

@@ -19,5 +19,10 @@ namespace AutoSubber.Data
         /// Videos that have been processed and added to user playlists
         /// </summary>
         public DbSet<ProcessedVideo> ProcessedVideos { get; set; } = null!;
+
+        /// <summary>
+        /// API quota usage tracking for various Google services
+        /// </summary>
+        public DbSet<ApiQuotaUsage> ApiQuotaUsages { get; set; } = null!;
     }
 }
