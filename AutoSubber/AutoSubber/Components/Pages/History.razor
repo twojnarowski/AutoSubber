@@ -1,0 +1,218 @@
+@page "/history"
+@using AutoSubber.Data
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@attribute [Authorize]
+@inject ApplicationDbContext DbContext
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ILogger<History> Logger
+
+<PageTitle>History - Video Processing History</PageTitle>
+
+<h1>History</h1>
+<h2 class="h4 text-muted mb-4">Video Processing History</h2>
+
+<div class="row">
+    <div class="col-12">
+        @if (isLoading)
+        {
+            <div class="text-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p>Loading video history...</p>
+            </div>
+        }
+        else if (videos.Any())
+        {
+            <p class="text-muted">
+                Showing @videos.Count of @totalCount videos processed by automation.
+            </p>
+            
+            <div class="list-group">
+                @foreach (var video in videos)
+                {
+                    <div class="list-group-item">
+                        <div class="d-flex w-100 justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">
+                                    @if (!string.IsNullOrEmpty(video.Title))
+                                    {
+                                        <a href="https://www.youtube.com/watch?v=@video.VideoId" 
+                                           target="_blank" 
+                                           class="text-decoration-none">
+                                            @video.Title
+                                            <i class="fas fa-external-link-alt ms-1" style="font-size: 0.75rem;"></i>
+                                        </a>
+                                    }
+                                    else
+                                    {
+                                        <a href="https://www.youtube.com/watch?v=@video.VideoId" 
+                                           target="_blank" 
+                                           class="text-decoration-none">
+                                            Video @video.VideoId
+                                            <i class="fas fa-external-link-alt ms-1" style="font-size: 0.75rem;"></i>
+                                        </a>
+                                    }
+                                </h6>
+                                <p class="mb-1 text-muted">
+                                    <small>
+                                        Channel ID: @video.ChannelId
+                                        @if (!string.IsNullOrEmpty(video.Source))
+                                        {
+                                            <span class="ms-2">• Source: @video.Source</span>
+                                        }
+                                    </small>
+                                </p>
+                            </div>
+                            <div class="text-end">
+                                <small class="text-muted">@video.ProcessedAt.ToString("MMM dd, yyyy 'at' HH:mm")</small>
+                                @if (!video.AddedToPlaylist)
+                                {
+                                    <div>
+                                        <span class="badge bg-warning text-dark">Failed</span>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div>
+                                        <span class="badge bg-success">Added</span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                        @if (!string.IsNullOrEmpty(video.ErrorMessage))
+                        {
+                            <div class="mt-2">
+                                <small class="text-danger">
+                                    <i class="fas fa-exclamation-triangle me-1"></i>
+                                    @video.ErrorMessage
+                                </small>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+            
+            <!-- Pagination -->
+            @if (totalPages > 1)
+            {
+                <nav aria-label="Video history pagination" class="mt-4">
+                    <ul class="pagination justify-content-center">
+                        <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                            <button class="page-link" @onclick="() => LoadPage(1)" disabled="@(currentPage == 1)">
+                                First
+                            </button>
+                        </li>
+                        <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                            <button class="page-link" @onclick="() => LoadPage(currentPage - 1)" disabled="@(currentPage == 1)">
+                                Previous
+                            </button>
+                        </li>
+                        
+                        @for (int i = Math.Max(1, currentPage - 2); i <= Math.Min(totalPages, currentPage + 2); i++)
+                        {
+                            var pageNumber = i;
+                            <li class="page-item @(currentPage == pageNumber ? "active" : "")">
+                                <button class="page-link" @onclick="() => LoadPage(pageNumber)">
+                                    @pageNumber
+                                </button>
+                            </li>
+                        }
+                        
+                        <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                            <button class="page-link" @onclick="() => LoadPage(currentPage + 1)" disabled="@(currentPage == totalPages)">
+                                Next
+                            </button>
+                        </li>
+                        <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                            <button class="page-link" @onclick="() => LoadPage(totalPages)" disabled="@(currentPage == totalPages)">
+                                Last
+                            </button>
+                        </li>
+                    </ul>
+                </nav>
+            }
+        }
+        else
+        {
+            <div class="alert alert-info">
+                <h4>No video history found</h4>
+                <p>No videos have been processed by automation yet. Videos will appear here as they are discovered and added to your playlists.</p>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<ProcessedVideo> videos = new();
+    private bool isLoading = true;
+    private int currentPage = 1;
+    private int pageSize = 20;
+    private int totalCount = 0;
+    private int totalPages = 0;
+    private string? currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCurrentUser();
+        await LoadPage(1);
+    }
+
+    private async Task LoadCurrentUser()
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = await UserManager.GetUserAsync(authState.User);
+            currentUserId = user?.Id;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading current user");
+        }
+    }
+
+    private async Task LoadPage(int page)
+    {
+        if (string.IsNullOrEmpty(currentUserId))
+        {
+            isLoading = false;
+            return;
+        }
+
+        try
+        {
+            isLoading = true;
+            currentPage = page;
+
+            // Get total count for pagination
+            totalCount = await DbContext.ProcessedVideos
+                .Where(v => v.UserId == currentUserId)
+                .CountAsync();
+
+            totalPages = (int)Math.Ceiling((double)totalCount / pageSize);
+
+            // Get videos for current page
+            videos = await DbContext.ProcessedVideos
+                .Where(v => v.UserId == currentUserId)
+                .OrderByDescending(v => v.ProcessedAt)
+                .Skip((currentPage - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            Logger.LogDebug("Loaded {Count} videos for page {Page}", videos.Count, currentPage);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading video history for page {Page}", page);
+            videos = new List<ProcessedVideo>();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}
