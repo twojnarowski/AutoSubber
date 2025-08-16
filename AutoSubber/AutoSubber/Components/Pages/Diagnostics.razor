@@ -1,0 +1,433 @@
+@page "/diagnostics"
+@using AutoSubber.Data
+@using AutoSubber.Services
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@attribute [Authorize]
+@inject IDiagnosticsService DiagnosticsService
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@rendermode InteractiveServer
+
+<PageTitle>Diagnostics - AutoSubber</PageTitle>
+
+<h1>System Diagnostics</h1>
+
+@if (!isAuthorized)
+{
+    <div class="alert alert-danger">
+        <h4>Access Denied</h4>
+        <p>You do not have permission to view this page. Admin access is required.</p>
+    </div>
+}
+else if (isLoading)
+{
+    <div class="text-center">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p>Loading diagnostics data...</p>
+    </div>
+}
+else
+{
+    @* Summary Statistics *@
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h2>System Overview</h2>
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">Active Subscriptions</h5>
+                            <h3>@summaryStats.GetValueOrDefault("ActiveSubscriptions", 0)</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">PubSub Health</h5>
+                            <h3>@summaryStats.GetValueOrDefault("PubSubSubscribed", 0)</h3>
+                            <small>Subscribed</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="card bg-info text-white">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">Success Rate (7d)</h5>
+                            <h3>@(summaryStats.GetValueOrDefault("SuccessRate", 0))%</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <div class="card @(((int)summaryStats.GetValueOrDefault("RecentFailedJobs", 0)) > 0 ? "bg-warning text-dark" : "bg-success text-white")">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">Failed Jobs (24h)</h5>
+                            <h3>@summaryStats.GetValueOrDefault("RecentFailedJobs", 0)</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* API Quota Usage *@
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h2>API Quota Usage (Last 30 Days)</h2>
+            @if (quotaUsage.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Service</th>
+                                <th>Requests Used</th>
+                                <th>Quota Limit</th>
+                                <th>Usage %</th>
+                                <th>Cost Units</th>
+                                <th>Last Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var quota in quotaUsage)
+                            {
+                                <tr>
+                                    <td>@quota.Date.ToString("yyyy-MM-dd")</td>
+                                    <td>@quota.ServiceName</td>
+                                    <td>@quota.RequestsUsed.ToString("N0")</td>
+                                    <td>@quota.QuotaLimit.ToString("N0")</td>
+                                    <td>
+                                        <div class="progress" style="height: 20px;">
+                                            <div class="progress-bar @GetQuotaProgressBarClass(quota.RequestsUsagePercentage)" 
+                                                 role="progressbar" 
+                                                 style="width: @Math.Min(quota.RequestsUsagePercentage, 100)%">
+                                                @quota.RequestsUsagePercentage.ToString("F1")%
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        @if (quota.CostUnitsUsed > 0)
+                                        {
+                                            <span>@quota.CostUnitsUsed.ToString("N0") / @quota.CostUnitLimit.ToString("N0")</span>
+                                        }
+                                        else
+                                        {
+                                            <span>N/A</span>
+                                        }
+                                    </td>
+                                    <td>@quota.LastUpdated.ToString("yyyy-MM-dd HH:mm")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-info">
+                    <p>No quota usage data available for the last 30 days.</p>
+                </div>
+            }
+        </div>
+    </div>
+
+    @* Failed Jobs *@
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h2>Failed Jobs (Last 30 Days)</h2>
+            @if (failedJobs.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>User</th>
+                                <th>Video ID</th>
+                                <th>Channel ID</th>
+                                <th>Title</th>
+                                <th>Error</th>
+                                <th>Retry Attempts</th>
+                                <th>Source</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var job in failedJobs)
+                            {
+                                <tr>
+                                    <td>@job.ProcessedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                                    <td>@(job.User?.Email ?? "Unknown")</td>
+                                    <td>
+                                        <a href="https://www.youtube.com/watch?v=@job.VideoId" target="_blank" class="text-decoration-none">
+                                            @job.VideoId
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <a href="https://www.youtube.com/channel/@job.ChannelId" target="_blank" class="text-decoration-none">
+                                            @job.ChannelId
+                                        </a>
+                                    </td>
+                                    <td>@(job.Title ?? "N/A")</td>
+                                    <td class="text-danger">
+                                        <small>@(job.ErrorMessage ?? "Unknown error")</small>
+                                    </td>
+                                    <td>@job.RetryAttempts</td>
+                                    <td>
+                                        <span class="badge @GetSourceBadgeClass(job.Source)">@job.Source</span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-success">
+                    <p>No failed jobs in the last 30 days. Great work!</p>
+                </div>
+            }
+        </div>
+    </div>
+
+    @* Webhook Health *@
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h2>Webhook Subscription Health</h2>
+            @if (webhookHealth.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Channel</th>
+                                <th>Channel ID</th>
+                                <th>PubSub Status</th>
+                                <th>Lease Expiry</th>
+                                <th>Attempts</th>
+                                <th>Last Attempt</th>
+                                <th>Polling Enabled</th>
+                                <th>Last Polled</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var subscription in webhookHealth)
+                            {
+                                var isPubSubHealthy = subscription.PubSubSubscribed && 
+                                                    subscription.PubSubLeaseExpiry.HasValue && 
+                                                    subscription.PubSubLeaseExpiry.Value > DateTime.UtcNow;
+                                <tr>
+                                    <td>@subscription.Title</td>
+                                    <td>
+                                        <a href="https://www.youtube.com/channel/@subscription.ChannelId" target="_blank" class="text-decoration-none">
+                                            @subscription.ChannelId
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <span class="badge @(isPubSubHealthy ? "bg-success" : "bg-danger")">
+                                            @(isPubSubHealthy ? "Healthy" : "Unhealthy")
+                                        </span>
+                                    </td>
+                                    <td>
+                                        @if (subscription.PubSubLeaseExpiry.HasValue)
+                                        {
+                                            var expiry = subscription.PubSubLeaseExpiry.Value;
+                                            var isExpiringSoon = expiry <= DateTime.UtcNow.AddHours(24);
+                                            <span class="@(isExpiringSoon ? "text-warning" : "")">
+                                                @expiry.ToString("yyyy-MM-dd HH:mm")
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">N/A</span>
+                                        }
+                                    </td>
+                                    <td>@subscription.PubSubSubscriptionAttempts</td>
+                                    <td>
+                                        @if (subscription.PubSubLastAttempt.HasValue)
+                                        {
+                                            @subscription.PubSubLastAttempt.Value.ToString("yyyy-MM-dd HH:mm")
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">Never</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <span class="badge @(subscription.PollingEnabled ? "bg-success" : "bg-secondary")">
+                                            @(subscription.PollingEnabled ? "Enabled" : "Disabled")
+                                        </span>
+                                    </td>
+                                    <td>
+                                        @if (subscription.LastPolledAt.HasValue)
+                                        {
+                                            @subscription.LastPolledAt.Value.ToString("yyyy-MM-dd HH:mm")
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">Never</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-warning">
+                    <p>No webhook subscriptions found.</p>
+                </div>
+            }
+        </div>
+    </div>
+
+    @* Unprocessed Webhook Events *@
+    @if (unprocessedEvents.Any())
+    {
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <h2>Unprocessed Webhook Events (Last 24 Hours)</h2>
+                <div class="alert alert-warning">
+                    <p><strong>@unprocessedEvents.Count</strong> webhook events are pending processing.</p>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Received</th>
+                                <th>Video ID</th>
+                                <th>Channel ID</th>
+                                <th>Title</th>
+                                <th>Age (hours)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var eventItem in unprocessedEvents.Take(20))
+                            {
+                                var ageHours = (DateTime.UtcNow - eventItem.ReceivedAt).TotalHours;
+                                <tr class="@(ageHours > 6 ? "table-warning" : "")">
+                                    <td>@eventItem.ReceivedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                                    <td>
+                                        <a href="https://www.youtube.com/watch?v=@eventItem.VideoId" target="_blank" class="text-decoration-none">
+                                            @eventItem.VideoId
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <a href="https://www.youtube.com/channel/@eventItem.ChannelId" target="_blank" class="text-decoration-none">
+                                            @eventItem.ChannelId
+                                        </a>
+                                    </td>
+                                    <td>@(eventItem.Title ?? "N/A")</td>
+                                    <td>@ageHours.ToString("F1")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                @if (unprocessedEvents.Count > 20)
+                {
+                    <p><em>Showing first 20 of @unprocessedEvents.Count unprocessed events.</em></p>
+                }
+            </div>
+        </div>
+    }
+
+    <div class="row">
+        <div class="col-md-12">
+            <button class="btn btn-primary" @onclick="RefreshDataAsync">
+                <i class="fas fa-refresh"></i> Refresh Data
+            </button>
+            <small class="text-muted ms-2">Last updated: @lastRefresh.ToString("yyyy-MM-dd HH:mm:ss")</small>
+        </div>
+    </div>
+}
+
+@code {
+    private bool isLoading = true;
+    private bool isAuthorized = false;
+    private DateTime lastRefresh = DateTime.UtcNow;
+
+    private Dictionary<string, object> summaryStats = new();
+    private List<ApiQuotaUsage> quotaUsage = new();
+    private List<ProcessedVideo> failedJobs = new();
+    private List<Subscription> webhookHealth = new();
+    private List<WebhookEvent> unprocessedEvents = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CheckAuthorizationAsync();
+        
+        if (isAuthorized)
+        {
+            await LoadDataAsync();
+        }
+        
+        isLoading = false;
+    }
+
+    private async Task CheckAuthorizationAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        if (authState.User.Identity?.IsAuthenticated == true)
+        {
+            var user = await UserManager.GetUserAsync(authState.User);
+            isAuthorized = user?.IsAdmin == true;
+        }
+    }
+
+    private async Task LoadDataAsync()
+    {
+        try
+        {
+            summaryStats = await DiagnosticsService.GetSummaryStatsAsync();
+            quotaUsage = await DiagnosticsService.GetQuotaUsageAsync(30);
+            failedJobs = await DiagnosticsService.GetFailedJobsAsync(30);
+            webhookHealth = await DiagnosticsService.GetWebhookHealthAsync();
+            unprocessedEvents = await DiagnosticsService.GetUnprocessedWebhookEventsAsync(24);
+            lastRefresh = DateTime.UtcNow;
+        }
+        catch (Exception ex)
+        {
+            // Log error and show notification
+            Console.WriteLine($"Error loading diagnostics data: {ex.Message}");
+        }
+    }
+
+    private async Task RefreshDataAsync()
+    {
+        isLoading = true;
+        StateHasChanged();
+        
+        await LoadDataAsync();
+        
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    private static string GetQuotaProgressBarClass(double percentage)
+    {
+        return percentage switch
+        {
+            >= 90 => "bg-danger",
+            >= 75 => "bg-warning",
+            >= 50 => "bg-info",
+            _ => "bg-success"
+        };
+    }
+
+    private static string GetSourceBadgeClass(string source)
+    {
+        return source.ToLower() switch
+        {
+            "webhook" => "bg-primary",
+            "polling" => "bg-secondary",
+            _ => "bg-dark"
+        };
+    }
+}

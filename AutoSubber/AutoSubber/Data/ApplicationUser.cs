@@ -39,5 +39,10 @@ namespace AutoSubber.Data
         /// Whether automation is disabled for this user due to token refresh failures
         /// </summary>
         public bool AutomationDisabled { get; set; } = false;
+
+        /// <summary>
+        /// Whether this user has admin privileges
+        /// </summary>
+        public bool IsAdmin { get; set; } = false;
     }
 }
