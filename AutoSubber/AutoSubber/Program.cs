@@ -99,9 +99,9 @@ namespace AutoSubber
                 });
             }
 
-            var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+            var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
             
-            // Configure Entity Framework with support for SQL Server, PostgreSQL, and SQLite
+            // Configure Entity Framework with support for SQL Server, PostgreSQL, SQLite, and InMemory (for testing)
             var databaseProvider = builder.Configuration.GetValue<string>("DatabaseProvider") ?? "SqlServer";
             
             if (databaseProvider.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
@@ -109,6 +109,12 @@ namespace AutoSubber
                 var postgresConnectionString = builder.Configuration.GetConnectionString("PostgreSQLConnection") ?? throw new InvalidOperationException("Connection string 'PostgreSQLConnection' not found.");
                 builder.Services.AddDbContext<ApplicationDbContext>(options =>
                     options.UseNpgsql(postgresConnectionString));
+            }
+            else if (databaseProvider.Equals("InMemory", StringComparison.OrdinalIgnoreCase))
+            {
+                // For testing purposes
+                builder.Services.AddDbContext<ApplicationDbContext>(options =>
+                    options.UseInMemoryDatabase("AutoSubberTestDb"));
             }
             else if (databaseProvider.Equals("SQLite", StringComparison.OrdinalIgnoreCase) || 
                      !OperatingSystem.IsWindows())  // Use SQLite on non-Windows platforms
@@ -119,6 +125,9 @@ namespace AutoSubber
             }
             else
             {
+                if (string.IsNullOrEmpty(connectionString))
+                    throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+                
                 builder.Services.AddDbContext<ApplicationDbContext>(options =>
                     options.UseSqlServer(connectionString));
             }
