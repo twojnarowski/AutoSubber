@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  autosubber:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - DatabaseProvider=SQLite
+      - ConnectionStrings__SqliteConnection=Data Source=/app/data/autosubber.db
+      - DataProtection__KeyDirectory=/app/keys
+      # OAuth credentials (set these in .env file or environment)
+      - Authentication__Google__ClientId=${GOOGLE_CLIENT_ID:-}
+      - Authentication__Google__ClientSecret=${GOOGLE_CLIENT_SECRET:-}
+      - Authentication__Microsoft__ClientId=${MICROSOFT_CLIENT_ID:-}
+      - Authentication__Microsoft__ClientSecret=${MICROSOFT_CLIENT_SECRET:-}
+    volumes:
+      # Persist database and keys
+      - autosubber_data:/app/data
+      - autosubber_keys:/app/keys
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # Optional: PostgreSQL database for production-like testing
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: autosubber
+      POSTGRES_USER: autosubber
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-autosubber_dev_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U autosubber"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    profiles:
+      - postgres
+
+  # Production-like setup with PostgreSQL
+  autosubber-postgres:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - DatabaseProvider=PostgreSQL
+      - ConnectionStrings__PostgreSQLConnection=Host=postgres;Database=autosubber;Username=autosubber;Password=${POSTGRES_PASSWORD:-autosubber_dev_password}
+      - DataProtection__KeyDirectory=/app/keys
+      - Authentication__Google__ClientId=${GOOGLE_CLIENT_ID:-}
+      - Authentication__Google__ClientSecret=${GOOGLE_CLIENT_SECRET:-}
+      - Authentication__Microsoft__ClientId=${MICROSOFT_CLIENT_ID:-}
+      - Authentication__Microsoft__ClientSecret=${MICROSOFT_CLIENT_SECRET:-}
+    volumes:
+      - autosubber_keys_postgres:/app/keys
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    profiles:
+      - postgres
+
+volumes:
+  autosubber_data:
+  autosubber_keys:
+  autosubber_keys_postgres:
+  postgres_data:

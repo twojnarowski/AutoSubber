@@ -189,6 +189,9 @@ namespace AutoSubber
             // Register background service for video processing
             builder.Services.AddHostedService<VideoProcessingBackgroundService>();
 
+            // Add health checks for container monitoring
+            builder.Services.AddHealthChecks();
+
             var app = builder.Build();
 
             // Configure Serilog request logging
@@ -222,6 +225,9 @@ namespace AutoSubber
 
             // Map Web API controllers for webhook endpoints
             app.MapControllers();
+
+            // Map health check endpoint for container monitoring
+            app.MapHealthChecks("/health");
 
             // Log application startup
             Log.Information("AutoSubber application starting up");
