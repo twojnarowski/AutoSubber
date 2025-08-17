@@ -4,18 +4,16 @@ FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 # Set the working directory
 WORKDIR /src
 
-# Copy solution file
-COPY AutoSubber.sln ./
-
-# Copy project files
-COPY AutoSubber/AutoSubber/AutoSubber.csproj ./AutoSubber/AutoSubber/
-COPY AutoSubber/AutoSubber.Client/AutoSubber.Client.csproj ./AutoSubber/AutoSubber.Client/
-COPY AutoSubber.Tests/AutoSubber.Tests.csproj ./AutoSubber.Tests/
+# Copy solution file and project files first for better layer caching
+COPY *.sln ./
+COPY AutoSubber/AutoSubber/*.csproj ./AutoSubber/AutoSubber/
+COPY AutoSubber/AutoSubber.Client/*.csproj ./AutoSubber/AutoSubber.Client/
+COPY AutoSubber.Tests/*.csproj ./AutoSubber.Tests/
 
 # Restore dependencies
 RUN dotnet restore
 
-# Copy the source code
+# Copy the rest of the source code
 COPY . .
 
 # Build the application
