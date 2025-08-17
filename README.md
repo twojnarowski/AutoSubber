@@ -266,8 +266,38 @@ The application supports multiple database providers:
 
 For production deployment, see the following guides:
 
-- [Environment Variables Configuration](ENVIRONMENT_VARIABLES.md)
-- [Production Security Guide](PRODUCTION_SECURITY.md)
+- [Deployment Guide](DEPLOYMENT.md) - Complete Docker and CI/CD setup
+- [Environment Variables Configuration](ENVIRONMENT_VARIABLES.md) - Secure configuration management
+- [Production Security Guide](PRODUCTION_SECURITY.md) - Security best practices
+
+### Quick Docker Deployment
+
+1. **Pull the latest image**:
+   ```bash
+   docker pull ghcr.io/twojnarowski/autosubber:latest
+   ```
+
+2. **Run with environment variables**:
+   ```bash
+   docker run -d \
+     -p 8080:8080 \
+     -e ASPNETCORE_ENVIRONMENT=Production \
+     -e Authentication__Google__ClientId="your-client-id" \
+     -e Authentication__Google__ClientSecret="your-client-secret" \
+     -v autosubber_data:/app/data \
+     -v autosubber_keys:/var/keys \
+     ghcr.io/twojnarowski/autosubber:latest
+   ```
+
+3. **Access the application**: http://localhost:8080
+
+### CI/CD Pipeline
+
+The application includes automated CI/CD pipeline via GitHub Actions:
+- ✅ Automated testing on every push/PR
+- 🐳 Docker image building and publishing
+- 🔒 Security vulnerability scanning
+- 🚀 Ready for cloud deployment integration
 
 ### Important Production Considerations
 
@@ -276,6 +306,8 @@ For production deployment, see the following guides:
 3. **Secure Token Storage**: Configure proper Data Protection key persistence
 4. **HTTPS**: Ensure your application runs over HTTPS
 5. **Environment Variables**: Use secure methods to manage OAuth secrets
+
+## Production Deployment
 
 ## Troubleshooting
 
