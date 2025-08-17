@@ -366,3 +366,7 @@ FodyWeavers.xsd
 *.db
 *.db-shm
 *.db-wal
+
+# Test Coverage Reports
+coveragereport/
+TestResults/
